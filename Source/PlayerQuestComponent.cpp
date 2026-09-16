@@ -1,6 +1,8 @@
 #include "PlayerQuestComponent.h"
 #include "QuestActor.h"
+
 #include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 
 UPlayerQuestComponent::UPlayerQuestComponent()
@@ -13,17 +15,29 @@ void UPlayerQuestComponent::BeginPlay()
     Super::BeginPlay();
 }
 
-void UPlayerQuestComponent::AddQuest_Implementation(const FQuestData& NewQuest)
+void UPlayerQuestComponent::AddQuest_Implementation(FQuestData NewQuest)
 {
-    if (!NewQuest.QuestName.IsNone())
+    if (!GetOwner() || !GetOwner()->HasAuthority())
     {
-        ActiveQuests.Add(NewQuest);
-        StartQuests();
+        return;
     }
+
+    if (NewQuest.QuestName.IsNone() || FindQuest(NewQuest.QuestName))
+    {
+        return;
+    }
+
+    ActiveQuests.Add(MoveTemp(NewQuest));
+    StartQuests();
 }
 
-void UPlayerQuestComponent::CompleteQuest_Implementation(const FName QuestName)
+void UPlayerQuestComponent::FinishQuest_Implementation(FName QuestName)
 {
+    if (!GetOwner() || !GetOwner()->HasAuthority())
+    {
+        return;
+    }
+
     FQuestData* Quest = FindQuest(QuestName);
     if (!Quest || !Quest->IsComplete())
     {
@@ -32,15 +46,17 @@ void UPlayerQuestComponent::CompleteQuest_Implementation(const FName QuestName)
 
     FinishedQuests.AddUnique(QuestName);
     ActiveQuests.RemoveAll(
-        [QuestName](const FQuestData& Entry)
+        [QuestName](const FQuestData& QuestEntry)
         {
-            return Entry.QuestName == QuestName;
+            return QuestEntry.QuestName == QuestName;
         });
 
     StartQuests();
 }
 
-bool UPlayerQuestComponent::UpdateQuestProgress(const FName QuestName, int32 ProgressIndex)
+bool UPlayerQuestComponent::UpdateQuestProgress(
+    FName QuestName,
+    int32 ProgressIndex)
 {
     if (!GetOwner() || !GetOwner()->HasAuthority())
     {
@@ -65,23 +81,28 @@ bool UPlayerQuestComponent::UpdateQuestProgress(const FName QuestName, int32 Pro
 
     if (Quest->bCanBeCompleted)
     {
-        CompleteQuest(QuestName);
+        FinishQuest(QuestName);
     }
 
     return true;
 }
 
-FQuestData* UPlayerQuestComponent::FindQuest(const FName QuestName)
+FQuestData* UPlayerQuestComponent::FindQuest(FName QuestName)
 {
     return ActiveQuests.FindByPredicate(
-        [QuestName](const FQuestData& Entry)
+        [QuestName](const FQuestData& Quest)
         {
-            return Entry.QuestName == QuestName;
+            return Quest.QuestName == QuestName;
         });
 }
 
 void UPlayerQuestComponent::StartQuests_Implementation()
 {
+    if (!GetOwner() || !GetOwner()->HasAuthority())
+    {
+        return;
+    }
+
     HideAllQuestActors();
 
     for (const FQuestData& Quest : ActiveQuests)
@@ -92,7 +113,7 @@ void UPlayerQuestComponent::StartQuests_Implementation()
 
 void UPlayerQuestComponent::HideAllQuestActors()
 {
-    if (!GetOwner() || !GetOwner()->HasAuthority())
+    if (!GetWorld())
     {
         return;
     }
@@ -105,7 +126,7 @@ void UPlayerQuestComponent::HideAllQuestActors()
 
 void UPlayerQuestComponent::ShowQuestActors(const FQuestData& Quest)
 {
-    if (!GetOwner() || !GetOwner()->HasAuthority())
+    if (!GetWorld())
     {
         return;
     }
