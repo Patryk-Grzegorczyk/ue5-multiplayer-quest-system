@@ -98,10 +98,6 @@ FQuestData* UPlayerQuestComponent::FindQuest(FName QuestName)
 
 void UPlayerQuestComponent::StartQuests_Implementation()
 {
-    if (!GetOwner() || !GetOwner()->HasAuthority())
-    {
-        return;
-    }
 
     HideAllQuestActors();
 
