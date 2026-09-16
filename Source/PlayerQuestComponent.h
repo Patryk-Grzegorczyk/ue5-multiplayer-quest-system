@@ -44,7 +44,6 @@ public:
 protected:
     virtual void BeginPlay() override;
 
-    UFUNCTION(Client, Reliable)
     void StartQuests();
 
     UFUNCTION()
