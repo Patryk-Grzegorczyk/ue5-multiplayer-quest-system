@@ -23,23 +23,20 @@ public:
     UPROPERTY(ReplicatedUsing=OnRep_FinishedQuests, VisibleAnywhere, BlueprintReadOnly)
     TArray<FName> FinishedQuests;
 
-    UPROPERTY(BlueprintAssignable)
+    UPROPERTY(BlueprintAssignable, Category="Quest")
     FOnQuestStateChanged OnQuestStateChanged;
 
     UFUNCTION(Server, Reliable)
-    void AddQuest(const FQuestData& NewQuest);
+    void AddQuest(FQuestData NewQuest);
 
     UFUNCTION(Server, Reliable)
-    void CompleteQuest(const FName QuestName);
+    void FinishQuest(FName QuestName);
 
-    bool UpdateQuestProgress(const FName QuestName, int32 ProgressIndex);
+    // Intended to be called by server-side quest actors.
+    bool UpdateQuestProgress(FName QuestName, int32 ProgressIndex);
 
 protected:
-    UFUNCTION()
-    void OnRep_ActiveQuests();
-
-    UFUNCTION()
-    void OnRep_FinishedQuests();
+    virtual void BeginPlay() override;
 
     UFUNCTION(Client, Reliable)
     void StartQuests();
@@ -47,10 +44,16 @@ protected:
     UFUNCTION(Client, Reliable)
     void SetQuestActorVisibility(AQuestActor* QuestActor, bool bVisible);
 
+    UFUNCTION()
+    void OnRep_ActiveQuests();
+
+    UFUNCTION()
+    void OnRep_FinishedQuests();
+
     void ShowQuestActors(const FQuestData& Quest);
     void HideAllQuestActors();
-    FQuestData* FindQuest(const FName QuestName);
+    FQuestData* FindQuest(FName QuestName);
 
-    virtual void BeginPlay() override;
-    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    virtual void GetLifetimeReplicatedProps(
+        TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };
