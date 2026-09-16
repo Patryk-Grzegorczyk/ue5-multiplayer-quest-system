@@ -26,9 +26,11 @@ struct FQuestData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EQuestType QuestType = EQuestType::None;
 
+    // World actors associated with this quest.
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<TSubclassOf<AActor>> QuestActors;
 
+    // One entry per objective/subtask.
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<bool> QuestProgress;
 
@@ -37,6 +39,11 @@ struct FQuestData
 
     bool IsComplete() const
     {
+        if (QuestProgress.IsEmpty())
+        {
+            return false;
+        }
+
         for (const bool Progress : QuestProgress)
         {
             if (!Progress)
@@ -45,6 +52,6 @@ struct FQuestData
             }
         }
 
-        return QuestProgress.Num() > 0;
+        return true;
     }
 };
