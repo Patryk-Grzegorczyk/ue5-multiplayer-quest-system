@@ -2,7 +2,7 @@
 
 A simplified portfolio extraction of the quest architecture developed for **DeepAnomaly**, a cooperative horror extraction game built with Unreal Engine 5 and C++.
 
-The original production system integrates with the game's character, inventory, UI, notifications and other gameplay systems. Those dependencies are intentionally removed here so the example focuses on multiplayer quest state and player-specific world interactions.
+The production system integrates with the game's character, inventory, UI and other gameplay systems. Those dependencies are intentionally removed from this sample so the focus remains on multiplayer quest state and player-specific world interactions.
 
 ## Features
 
@@ -10,130 +10,123 @@ The original production system integrates with the game's character, inventory, 
 - Replicated active and finished quest state
 - Multi-step quest progress
 - Player-specific QuestActor visibility
-- Client RPCs for presentation changes
+- Client RPCs for player-specific presentation
 - Per-player labour timers
-- Location, special-item and labour quest interactions
-- Separation between quest state and world interaction
+- Location, special-item and labour interactions
+- Separation between player quest state and world actors
 
 ## Architecture
 
 ```text
-                    Server
+                    SERVER
                       |
           +-----------+-----------+
           |                       |
           v                       v
  PlayerQuestComponent         QuestActor
           |                       |
-   Active / Finished              |
-      Quests                      |
+ Active / Finished               |
+    Quest State                   |
           |                       |
           +-----------+-----------+
                       |
-                 Player-specific
-                    RPC
+                Client RPC
                       |
           +-----------+-----------+
           |                       |
        Player A                Player B
           |                       |
-     Actor visible          Actor hidden
-     / hidden                independently
+    Actor hidden              Actor visible
+    for Player A              for Player B
 ```
 
 ## Player-Specific World State
 
-QuestActors are shared world actors, but their presentation can differ between players.
+A QuestActor can remain a shared, server-managed world actor while its presentation differs between players.
 
-When a player receives or completes a quest, the server can request a client-specific visibility change through a Client RPC instead of destroying the shared actor globally.
-
-For example:
+When a player completes a special-item objective, the server sends a Client RPC to that player's connection. The client hides the actor locally instead of destroying the shared actor.
 
 ```text
-                 QuestActor
-                     |
-              Server-managed
-                     |
-          +----------+----------+
-          |                     |
-       Player A              Player B
-          |                     |
-      Quest done             Quest active
-          |                     |
-      Actor hidden            Actor visible
+                    QuestActor
+                       |
+                 Server-managed
+                       |
+             +---------+---------+
+             |                   |
+          Player A            Player B
+             |                   |
+        Quest complete        Quest active
+             |                   |
+        Actor hidden          Actor visible
 ```
 
-This allows a single world actor to represent a quest objective while each player can have an independent view of that objective.
+This allows cooperative players to interact with the same world while maintaining independent quest progress.
 
-## Per-Player Timers
+## Per-Player Labour Timers
 
 Labour objectives can require a player to remain in an interaction for a configurable amount of time.
 
-The actor maintains a separate timer handle for each interacting player:
+The QuestActor maintains a separate timer for each interacting player:
 
 ```cpp
 TMap<APlayerController*, FTimerHandle> ActivePlayerTimers;
 ```
 
-This means multiple players can interact with the same QuestActor independently without sharing one global timer.
-
-A player can also cancel their own active timer without affecting another player's interaction.
+A timer can be started or cancelled for one player without modifying another player's active interaction.
 
 ## Quest Progress
 
-A quest can contain multiple progress entries:
+A quest can contain multiple objective entries:
 
 ```cpp
 TArray<bool> QuestProgress;
 ```
 
-Completing one objective updates its corresponding index. The quest becomes completable only after all progress entries have been satisfied.
-
-This supports objectives composed of multiple world interactions without requiring a separate actor for every quest state.
+Completing an objective updates its corresponding index. The quest becomes completable only after every progress entry is satisfied.
 
 ## Networking
 
-Quest state is stored on a replicated player-owned component:
+Quest state is stored on a replicated player-owned component.
 
 ```text
-Client input
-     |
-     v
-Server
-     |
-     | validate / update
-     v
+Client interaction
+       |
+       v
+    Server
+       |
+       | validate / update
+       v
 PlayerQuestComponent
-     |
-     | replicated state
-     v
+       |
+       | replicated state
+       v
 Owning client
-     |
-     v
-Quest UI / presentation
+       |
+       v
+Quest presentation
 ```
 
-World interactions are processed on the server. Player-specific visual changes are sent back through Client RPCs.
+Quest progression is performed on the server. `OnRep_ActiveQuests` and `OnRep_FinishedQuests` provide client-side state-change hooks.
 
 ## Why Client-Specific Visibility?
 
-Destroying a shared replicated actor would affect all clients.
+Destroying a shared replicated actor would affect the actor's replicated lifetime for all relevant clients.
 
-For player-specific objectives, the actor can instead remain part of the shared world while its local presentation is changed for the relevant player.
+For player-specific quest objectives, the actor can remain in the world while a Client RPC changes its local visibility and collision state for the relevant player.
 
-This approach is useful when different players can have different quest progress while exploring the same multiplayer level.
+This is useful when different cooperative players can have different quest progress while sharing the same level.
 
 ## Design Decisions
 
 ### Player-Owned Quest State
 
-Active and finished quests belong to the player's quest component rather than being stored as global world state.
+Active and finished quests belong to a player's `UPlayerQuestComponent`.
 
 This keeps quest progression independent between cooperative players.
 
 ### World Actor + Player State
 
-QuestActor handles interaction with the world, while PlayerQuestComponent owns the player's quest progress.
+`AQuestActor` handles world interaction, while `UPlayerQuestComponent` owns the player's quest state.
 
 This separates:
 
@@ -142,17 +135,15 @@ This separates:
 - multiplayer replication
 - presentation
 
-### Simplified Portfolio Extraction
+### Per-Player Timers
 
-The original DeepAnomaly implementation contains additional integrations for inventory rewards, notifications, quest UI, item requirements and other gameplay systems.
-
-Those systems are intentionally excluded from this repository to keep the example focused on the multiplayer quest architecture.
+Labour interactions use a timer map keyed by `APlayerController*`, allowing multiple players to use the same actor independently.
 
 ## Source Relationship
 
 This repository is **not the complete DeepAnomaly quest implementation**.
 
-It is an intentionally simplified extraction of the architecture developed for the game, adapted to remove game-specific dependencies and focus on the networking and quest-state concepts demonstrated here.
+It is an intentionally simplified extraction of the architecture developed for the game, adapted to remove game-specific dependencies and focus on the multiplayer quest concepts demonstrated here.
 
 ## Unreal Engine
 
@@ -164,7 +155,7 @@ The generated module API macro used in this sample is:
 QUESTSYSTEM_API
 ```
 
-When integrating these files into another Unreal Engine module, replace it with that module's generated API macro.
+Replace it with the API macro generated for the Unreal module where these classes are integrated.
 
 ## License
 
