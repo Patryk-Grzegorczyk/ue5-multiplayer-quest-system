@@ -54,9 +54,7 @@ void UPlayerQuestComponent::FinishQuest_Implementation(FName QuestName)
     StartQuests();
 }
 
-bool UPlayerQuestComponent::UpdateQuestProgress(
-    FName QuestName,
-    int32 ProgressIndex)
+bool UPlayerQuestComponent::UpdateQuestProgress(FName QuestName, int32 ProgressIndex)
 {
     if (!GetOwner() || !GetOwner()->HasAuthority())
     {
@@ -98,6 +96,10 @@ FQuestData* UPlayerQuestComponent::FindQuest(FName QuestName)
 
 void UPlayerQuestComponent::StartQuests_Implementation()
 {
+    if (!GetWorld())
+    {
+        return;
+    }
 
     HideAllQuestActors();
 
@@ -116,7 +118,10 @@ void UPlayerQuestComponent::HideAllQuestActors()
 
     for (TActorIterator<AQuestActor> It(GetWorld()); It; ++It)
     {
-        SetQuestActorVisibility(*It, false);
+        if (*It)
+        {
+            (*It)->SetPlayerVisibilityLocal(false);
+        }
     }
 }
 
@@ -136,21 +141,31 @@ void UPlayerQuestComponent::ShowQuestActors(const FQuestData& Quest)
 
         for (TActorIterator<AQuestActor> It(GetWorld(), ActorClass); It; ++It)
         {
-            SetQuestActorVisibility(*It, true);
+            if (*It)
+            {
+                (*It)->SetPlayerVisibilityLocal(true);
+            }
         }
     }
 }
 
-void UPlayerQuestComponent::SetQuestActorVisibility_Implementation(
+void UPlayerQuestComponent::ClientSetQuestActorVisibility_Implementation(
     AQuestActor* QuestActor,
     bool bVisible)
 {
-    if (!QuestActor)
+    if (QuestActor)
     {
-        return;
+        QuestActor->SetPlayerVisibilityLocal(bVisible);
     }
+}
 
-    QuestActor->SetPlayerVisibility(bVisible);
+void UPlayerQuestComponent::ClientDisableQuestActorInteraction_Implementation(
+    AQuestActor* QuestActor)
+{
+    if (QuestActor)
+    {
+        QuestActor->DisableInteractionLocal();
+    }
 }
 
 void UPlayerQuestComponent::OnRep_ActiveQuests()

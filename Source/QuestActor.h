@@ -6,6 +6,8 @@
 #include "QuestTypes.h"
 #include "QuestActor.generated.h"
 
+class APlayerController;
+
 UCLASS()
 class QUESTSYSTEM_API AQuestActor : public AActor
 {
@@ -32,7 +34,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Labour")
     float LabourWaitTime = 0.0f;
 
-    // Called by the server after an interaction has been validated.
     UFUNCTION(BlueprintCallable)
     void ProcessQuest(APlayerController* PlayerController);
 
@@ -42,8 +43,9 @@ public:
     UFUNCTION(BlueprintCallable)
     void CancelLabour(APlayerController* PlayerController);
 
-    // Server requests a presentation change for one owning client.
-    void SetPlayerVisibility(bool bVisible);
+    // Local presentation functions. Called on the owning client.
+    void SetPlayerVisibilityLocal(bool bVisible);
+    void DisableInteractionLocal();
 
 protected:
     virtual void BeginPlay() override;
@@ -63,12 +65,6 @@ protected:
         AActor* OtherActor,
         UPrimitiveComponent* OtherComponent,
         int32 OtherBodyIndex);
-
-    UFUNCTION(Client, Reliable)
-    void ClientSetVisibility(bool bVisible);
-
-    UFUNCTION(Client, Reliable)
-    void ClientDisableInteraction();
 
     TMap<APlayerController*, FTimerHandle> ActivePlayerTimers;
 };

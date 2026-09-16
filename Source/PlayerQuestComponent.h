@@ -32,17 +32,20 @@ public:
     UFUNCTION(Server, Reliable)
     void FinishQuest(FName QuestName);
 
-    // Intended to be called by server-side quest actors.
     bool UpdateQuestProgress(FName QuestName, int32 ProgressIndex);
+
+    // These RPCs run on the owning player's client.
+    UFUNCTION(Client, Reliable)
+    void ClientSetQuestActorVisibility(AQuestActor* QuestActor, bool bVisible);
+
+    UFUNCTION(Client, Reliable)
+    void ClientDisableQuestActorInteraction(AQuestActor* QuestActor);
 
 protected:
     virtual void BeginPlay() override;
 
     UFUNCTION(Client, Reliable)
     void StartQuests();
-
-    UFUNCTION(Client, Reliable)
-    void SetQuestActorVisibility(AQuestActor* QuestActor, bool bVisible);
 
     UFUNCTION()
     void OnRep_ActiveQuests();

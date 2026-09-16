@@ -15,11 +15,8 @@ AQuestActor::AQuestActor()
     CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
     CollisionBox->SetupAttachment(RootComponent);
 
-    CollisionBox->OnComponentBeginOverlap.AddDynamic(
-        this, &AQuestActor::OnOverlapBegin);
-
-    CollisionBox->OnComponentEndOverlap.AddDynamic(
-        this, &AQuestActor::OnOverlapEnd);
+    CollisionBox->OnComponentBeginOverlap.AddDynamic(this, &AQuestActor::OnOverlapBegin);
+    CollisionBox->OnComponentEndOverlap.AddDynamic(this, &AQuestActor::OnOverlapEnd);
 
     SetActorHiddenInGame(true);
     SetActorEnableCollision(false);
@@ -51,17 +48,15 @@ void AQuestActor::ProcessQuest(APlayerController* PlayerController)
         return;
     }
 
-    if (!QuestComponent->UpdateQuestProgress(
-        QuestName,
-        QuestProgressIndex))
+    if (!QuestComponent->UpdateQuestProgress(QuestName, QuestProgressIndex))
     {
         return;
     }
 
     if (QuestType == EQuestType::FindSpecialItem)
     {
-        ClientDisableInteraction();
-        ClientSetVisibility(false);
+        QuestComponent->ClientSetQuestActorVisibility(this, false);
+        QuestComponent->ClientDisableQuestActorInteraction(this);
     }
 
     ActivePlayerTimers.Remove(PlayerController);
@@ -86,19 +81,18 @@ void AQuestActor::BeginLabour(APlayerController* PlayerController)
     }
 
     FTimerDelegate InteractionDelegate;
-    InteractionDelegate.BindUFunction(
-        this,
-        FName("ProcessQuest"),
-        PlayerController);
+    InteractionDelegate.BindUFunction(this, FName("ProcessQuest"), PlayerController);
 
-    FTimerHandle& TimerHandle =
-        ActivePlayerTimers.FindOrAdd(PlayerController);
+    FTimerHandle& TimerHandle = ActivePlayerTimers.FindOrAdd(PlayerController);
 
-    GetWorld()->GetTimerManager().SetTimer(
-        TimerHandle,
-        InteractionDelegate,
-        LabourWaitTime,
-        false);
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            TimerHandle,
+            InteractionDelegate,
+            LabourWaitTime,
+            false);
+    }
 }
 
 void AQuestActor::CancelLabour(APlayerController* PlayerController)
@@ -108,36 +102,28 @@ void AQuestActor::CancelLabour(APlayerController* PlayerController)
         return;
     }
 
-    if (FTimerHandle* TimerHandle =
-        ActivePlayerTimers.Find(PlayerController))
+    if (FTimerHandle* TimerHandle = ActivePlayerTimers.Find(PlayerController))
     {
-        GetWorld()->GetTimerManager().ClearTimer(*TimerHandle);
+        if (GetWorld())
+        {
+            GetWorld()->GetTimerManager().ClearTimer(*TimerHandle);
+        }
+
         ActivePlayerTimers.Remove(PlayerController);
     }
 }
 
-void AQuestActor::SetPlayerVisibility(bool bVisible)
-{
-    if (!HasAuthority())
-    {
-        return;
-    }
-
-    ClientSetVisibility(bVisible);
-}
-
-void AQuestActor::ClientSetVisibility_Implementation(bool bVisible)
+void AQuestActor::SetPlayerVisibilityLocal(bool bVisible)
 {
     SetActorHiddenInGame(!bVisible);
     SetActorEnableCollision(bVisible);
 }
 
-void AQuestActor::ClientDisableInteraction_Implementation()
+void AQuestActor::DisableInteractionLocal()
 {
     if (CollisionBox)
     {
-        CollisionBox->SetCollisionEnabled(
-            ECollisionEnabled::NoCollision);
+        CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     }
 }
 
@@ -149,12 +135,7 @@ void AQuestActor::OnOverlapBegin(
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
-    if (!HasAuthority() || !OtherActor)
-    {
-        return;
-    }
-
-    if (QuestType != EQuestType::FindLocation)
+    if (!HasAuthority() || !OtherActor || QuestType != EQuestType::FindLocation)
     {
         return;
     }
@@ -165,8 +146,7 @@ void AQuestActor::OnOverlapBegin(
         return;
     }
 
-    APlayerController* PlayerController = Pawn->GetController();
-    if (PlayerController)
+    if (APlayerController* PlayerController = Pawn->GetController())
     {
         ProcessQuest(PlayerController);
     }
