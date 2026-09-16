@@ -1,5 +1,7 @@
 #include "QuestActor.h"
 #include "PlayerQuestComponent.h"
+
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
 
@@ -15,6 +17,7 @@ AQuestActor::AQuestActor()
 
     CollisionBox->OnComponentBeginOverlap.AddDynamic(
         this, &AQuestActor::OnOverlapBegin);
+
     CollisionBox->OnComponentEndOverlap.AddDynamic(
         this, &AQuestActor::OnOverlapEnd);
 
@@ -48,7 +51,12 @@ void AQuestActor::ProcessQuest(APlayerController* PlayerController)
         return;
     }
 
-    QuestComponent->UpdateQuestProgress(QuestName, QuestProgressIndex);
+    if (!QuestComponent->UpdateQuestProgress(
+        QuestName,
+        QuestProgressIndex))
+    {
+        return;
+    }
 
     if (QuestType == EQuestType::FindSpecialItem)
     {
@@ -77,17 +85,18 @@ void AQuestActor::BeginLabour(APlayerController* PlayerController)
         return;
     }
 
-    FTimerDelegate Delegate;
-    Delegate.BindUFunction(
+    FTimerDelegate InteractionDelegate;
+    InteractionDelegate.BindUFunction(
         this,
         FName("ProcessQuest"),
         PlayerController);
 
-    FTimerHandle& TimerHandle = ActivePlayerTimers.FindOrAdd(PlayerController);
+    FTimerHandle& TimerHandle =
+        ActivePlayerTimers.FindOrAdd(PlayerController);
 
     GetWorld()->GetTimerManager().SetTimer(
         TimerHandle,
-        Delegate,
+        InteractionDelegate,
         LabourWaitTime,
         false);
 }
@@ -99,7 +108,8 @@ void AQuestActor::CancelLabour(APlayerController* PlayerController)
         return;
     }
 
-    if (FTimerHandle* TimerHandle = ActivePlayerTimers.Find(PlayerController))
+    if (FTimerHandle* TimerHandle =
+        ActivePlayerTimers.Find(PlayerController))
     {
         GetWorld()->GetTimerManager().ClearTimer(*TimerHandle);
         ActivePlayerTimers.Remove(PlayerController);
@@ -124,7 +134,11 @@ void AQuestActor::ClientSetVisibility_Implementation(bool bVisible)
 
 void AQuestActor::ClientDisableInteraction_Implementation()
 {
-    CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (CollisionBox)
+    {
+        CollisionBox->SetCollisionEnabled(
+            ECollisionEnabled::NoCollision);
+    }
 }
 
 void AQuestActor::OnOverlapBegin(
@@ -145,13 +159,16 @@ void AQuestActor::OnOverlapBegin(
         return;
     }
 
-    if (APawn* Pawn = Cast<APawn>(OtherActor))
+    APawn* Pawn = Cast<APawn>(OtherActor);
+    if (!Pawn)
     {
-        if (APlayerController* PC = Cast<APlayerController>(
-            Pawn->GetController()))
-        {
-            ProcessQuest(PC);
-        }
+        return;
+    }
+
+    APlayerController* PlayerController = Pawn->GetController();
+    if (PlayerController)
+    {
+        ProcessQuest(PlayerController);
     }
 }
 
